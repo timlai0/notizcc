@@ -1,0 +1,312 @@
+<!doctype html>
+<html>
+
+<head>
+	<title>PGP</title>
+
+	<script src="jquery.min.js"></script>
+	<link rel="stylesheet" type="text/css" href="pgp.css">
+
+	<link rel="shortcut icon" type="image/x-icon" href="key.ico">
+
+	<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+	<meta http-equiv="X-UA-Compatible" content="IE=edge">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+
+	<script type="text/javascript" src="openpgp.js"></script>
+
+	<script>
+		// if (location.protocol != 'https:') {
+		// 	location.href = 'https:' + window.location.href.substring(window.location.protocol.length);
+		// }
+		openpgp.config.commentstring = "https://notiz.cc/pgp/";
+
+		function generate(bits = 4096, password = $("#password").val()) {
+
+			$("#priv_key").val("");
+			$("#pub_key").val("");
+
+			var options = {
+				//userIds: [{ name:'notiz.cc/pgp', email:'test@example.com' }],
+				userIds: [{ name: 'notiz.cc/pgp' }],
+				numBits: bits,
+				passphrase: password,
+			};
+
+			try {
+				openpgp.generateKey(options).then(function (key) {
+
+					$("#priv_key").val(key.privateKeyArmored);
+					$("#pub_key").val(key.publicKeyArmored);
+					$("#password").val(password);
+				});
+			}
+			catch (err) {
+				alert('Fehler:' + err);
+			}
+		}
+
+		async function sign_message() {
+			$("#signed").html("");
+
+			const privkey = $("#priv_key").val();
+
+			$("#signed").html("Private Key fehlerhaft");
+			var privKeyObj = (await openpgp.key.readArmored(privkey)).keys[0];
+
+			if ($("#password").val() != "") {
+				$("#signed").html("Passwort des Private Keys falsch");
+				await privKeyObj.decrypt($("#password").val());
+			}
+
+			options = {
+				message: openpgp.cleartext.fromText($("#sign_msg").val()), // CleartextMessage or Message object
+				privateKeys: [privKeyObj]                             // for signing
+			};
+
+			openpgp.sign(options).then(function (signed) {
+				cleartext = signed.data; // '-----BEGIN PGP SIGNED MESSAGE ... END PGP SIGNATURE-----'
+
+				$("#signed").html(cleartext);
+			});
+		}
+
+		async function encrypt_message() {
+			$("#encrypted").html("");
+
+			const pubkey = $('#pub_key').val();
+
+			const options = {
+				message: openpgp.message.fromText($("#msg").val()),       // input as Message object
+				publicKeys: (await openpgp.key.readArmored(pubkey)).keys, // for encryption
+			}
+
+			$("#encrypted").html("Public Key fehlerhaft");
+
+			openpgp.encrypt(options).then(ciphertext => {
+				$("#encrypted").html(ciphertext.data);
+			})
+		}
+
+		async function decrypt_message() {
+			$("#decrypted").html("");
+
+			const privkey = $('#priv_key').val();
+
+			$("#signed").html("Private Key fehlerhaft");
+			var privKeyObj = (await openpgp.key.readArmored(privkey)).keys[0];
+
+			if ($("#password").val() != "") {
+				$("#signed").html("Passwort des Private Keys falsch");
+				await privKeyObj.decrypt($("#password").val());
+			}
+
+			const options = {
+				message: (await openpgp.message.readArmored($("#encrypted_msg").val())),    // parse armored message
+				privateKeys: [privKeyObj]                                 // for decryption
+			}
+
+			openpgp.decrypt(options).then(plaintext => {
+				$("#decrypted").html(plaintext.data);
+			})
+		}
+
+		async function verify_message() {
+			$("#verify").html("");
+
+			const cleartext = $("#verify_msg").val();
+			const pubkey = $('#pub_key').val();
+
+			$("#verify").html();
+
+			var options = {
+				message: await openpgp.cleartext.readArmored(cleartext), // parse armored message
+				publicKeys: (await openpgp.key.readArmored(pubkey)).keys // for verification
+			};
+
+			openpgp.verify(options).then(function (verified) {
+				validity = verified.signatures[0].valid; // true
+				if (validity) {
+					$("#verify").html('signed by key id ' + verified.signatures[0].keyid.toHex());
+				} else {
+					$("#verify").html('Fehler');
+				}
+			});
+		}
+
+		function copy(a, b) {
+			$('#' + b).val($('#' + a).html());
+		}
+	</script>
+</head>
+
+<body>
+
+	<nav>
+		<div><a href="">OpenPGP Demo</a></div>
+		<ul>
+			<a href="#ver">
+				<li>Verifizieren</li>
+			</a>
+			<a href="#dec">
+				<li>Entschlüsseln</li>
+			</a>
+			<a href="#enc">
+				<li>Verschlüsslen</li>
+			</a>
+			<a href="#sign">
+				<li>Signieren</li>
+			</a>
+			<a href="#keys">
+				<li>Schlüssel</li>
+			</a>
+		</ul>
+	</nav>
+
+	<a name="keys">
+		<div class="item">
+			<table>
+				<th colspan="2">
+					<h2>Key Eingabe</h2>
+				</th>
+				<tr>
+					<td>
+						<h3>Eigener Private Key</h3>
+					</td>
+					<td>
+						<h3>Public Key des Empfängers</h3>
+					</td>
+				</tr>
+				<tr>
+					<td>
+						<textarea class="key" id="priv_key"
+							placeholder="-----BEGIN PGP PRIVATE KEY BLOCK-----&#10;Eigener Private Key"></textarea><br>
+					</td>
+					<td>
+						<textarea class="key" id="pub_key"
+							placeholder="-----BEGIN PGP PUBLIC KEY BLOCK-----&#10;Public Key des Empfängers"></textarea>
+					</td>
+				</tr>
+				<tr>
+					<td>
+						<input id="password" type="password" placeholder="Passwort vom Private Key">
+					</td>
+					<td>
+						<button onclick="generate(2048)">2048 Bit Schlüsselpaar generieren</button>
+					</td>
+				</tr>
+			</table>
+		</div>
+
+		<a name="sign">
+			<div class="item">
+				<table>
+					<th>
+						<h2>Signieren</h2>
+						<p>Benutzt den Private Key</p>
+					</th>
+					<tbody>
+						<tr>
+							<td>
+								<textarea id="sign_msg"></textarea>
+							</td>
+							<td>
+								<pre><code><div id="signed"></div></code></pre>
+							</td>
+						</tr>
+						<tr>
+							<td><button onclick="sign_message()">Signieren</button></td>
+							<td><button onclick="copy('signed','msg')">zu Verschlüsseln</button></td>
+						</tr>
+					</tbody>
+				</table>
+			</div>
+
+			<a name="enc">
+				<div class="item">
+					<table>
+						<th>
+							<h2>Verschlüsseln</h2>
+							<p>Benutzt den Public Key</p>
+						</th>
+						<tbody>
+							<tr>
+								<td>
+									<textarea id="msg"></textarea>
+								</td>
+								<td>
+									<pre><code><div id="encrypted"></div></code></pre>
+								</td>
+							</tr>
+							<tr>
+								<td><button onclick="encrypt_message()">Verschlüsseln</button></td>
+								<td><button onclick="copy('encrypted','encrypted_msg')">zu Entschlüsseln</button></td>
+							</tr>
+						</tbody>
+					</table>
+				</div>
+
+				<a name="dec">
+					<div class="item">
+						<table>
+							<th>
+								<h2>Entschlüsseln</h2>
+								<p>Benutzt den Private Key</p>
+							</th>
+							<tbody>
+								<tr>
+									<td>
+										<textarea id="encrypted_msg"
+											placeholder="-----BEGIN PGP MESSAGE-----"></textarea>
+									</td>
+									<td>
+										<pre><code><div id="decrypted"></div></code></pre>
+									</td>
+								</tr>
+								<tr>
+									<td><button onclick="decrypt_message()">Entschlüsseln</button></td>
+									<td><button onclick="copy('decrypted','verify_msg')">zu Verifizieren</button></td>
+								</tr>
+							</tbody>
+						</table>
+					</div>
+
+					<a name="ver">
+						<div class="item">
+							<table>
+								<th>
+									<h2>Verifizieren</h2>
+									<p>Benutzt den Public Key</p>
+								</th>
+								<tbody>
+									<tr>
+										<td>
+											<textarea id="verify_msg"
+												placeholder="-----BEGIN PGP SIGNED MESSAGE-----&#10;Signierte Nachricht"></textarea>
+										</td>
+										<td>
+											<div id="verify"></div>
+										</td>
+									</tr>
+									<tr>
+										<td><button onclick="verify_message()">Verifizeiren</button></td>
+									</tr>
+								</tbody>
+							</table>
+						</div>
+
+						<footer>
+							<p>Keys generieren mit mehr Bits generiren mit "generate(bit, "pw")"</p>
+							<h3>Geschrieben mit </h3>
+							<ul>
+								<li>OpenPGP.js</li>
+								<li>jQuery</li>
+							</ul>
+							<br>
+							<hr>
+							<h3>Von Tim Lai - Leibniz Fachhochschule 2021</h3>
+						</footer>
+
+</body>
+
+</html>

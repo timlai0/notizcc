@@ -1,0 +1,53 @@
+body {
+	background: #D8D8D8;
+	display: flex;
+	min-height: 100vh;
+	flex-direction: column;
+}
+
+main {
+	flex: 1 0 auto;
+}
+
+.userlister tr td, .userlister th{
+	border: 1px solid black;
+	padding: 0.5em;
+}
+
+.btn-large {
+	margin: 0 5%;
+	width: 90%;
+}	
+
+
+.pointer:hover {
+	cursor: pointer;
+}
+
+.del {
+	width: 1em;
+}
+
+
+.bold {
+	font-weight: bold;	
+}
+
+.ip {
+	text-align: center;
+}
+
+/*Admin*/
+
+.admin-liste .preview {
+	word-break: break-all;
+}
+
+.admin-liste tr td {
+	border: 1px solid black;
+	padding: 3px;
+}
+
+nav .admin-logo {
+	padding-left: 3px
+}

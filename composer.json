@@ -1,0 +1,8 @@
+{
+	"require": {
+		"php" : "^7.0",
+		"ext-mbstring": "*",
+		"sentry/sentry": "^1.8"
+
+	}
+}
